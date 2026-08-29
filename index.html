@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="description" content="A minimal repeating interval timer.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>Interval Timer</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23000'/><circle cx='50' cy='50' r='30' fill='none' stroke='%23fff' stroke-width='8'/></svg>">
+<style>
+  :root {
+    --bg: #000;
+    --fg: #fff;
+    --dim: #767676;
+    --dimmer: #3a3a3a;
+    --line: #1f1f1f;
+    --focus: #fff;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+    user-select: none;
+    -webkit-user-select: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(20px, 4vh, 40px);
+    padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+             max(28px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  }
+
+  /* ---------- readout ---------- */
+
+  .readout { text-align: center; line-height: 1; }
+
+  .phase {
+    font-size: 13px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: clamp(10px, 2vh, 18px);
+    transition: color 0.25s ease;
+  }
+
+  .time {
+    font-size: clamp(4.5rem, 24vw, 13rem);
+    font-weight: 200;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+    transition: color 0.25s ease, opacity 0.25s ease;
+  }
+
+  .round {
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--dimmer);
+    margin-top: clamp(10px, 2vh, 18px);
+    min-height: 1em;
+  }
+
+  /* break phase reads as "resting": digits recede */
+  body.is-break .time { color: var(--dim); }
+  body.is-break .phase { color: var(--dim); }
+  body.is-paused .time { opacity: 0.35; }
+
+  /* ---------- controls ---------- */
+
+  .controls { display: flex; gap: 10px; }
+
+  button {
+    font: inherit;
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--fg);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 14px 22px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+    touch-action: manipulation;
+  }
+
+  button:hover { border-color: var(--dim); }
+  button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  #startBtn {
+    border-color: var(--fg);
+    min-width: 148px;
+  }
+  #startBtn:hover { background: var(--fg); color: var(--bg); }
+
+  #resetBtn { color: var(--dim); }
+  #resetBtn:hover { color: var(--fg); }
+
+  /* ---------- settings ---------- */
+
+  .settings {
+    width: 100%;
+    max-width: 460px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    transition: opacity 0.3s ease;
+  }
+  body.is-running .settings, body.is-paused .settings { opacity: 0.3; }
+  .settings:hover, .settings:focus-within { opacity: 1 !important; }
+
+  .row { display: flex; flex-direction: column; gap: 8px; }
+
+  .label {
+    font-size: 11px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--dimmer);
+  }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .chip {
+    padding: 9px 14px;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    color: var(--dim);
+    border-color: var(--line);
+    text-transform: none;
+  }
+  .chip:hover { color: var(--fg); }
+  .chip[aria-pressed="true"] { color: var(--bg); background: var(--fg); border-color: var(--fg); }
+
+  .custom {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 2px;
+  }
+  .custom[hidden] { display: none; }
+
+  input[type="number"] {
+    font: inherit;
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+    width: 74px;
+    padding: 9px 10px;
+    color: var(--fg);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    text-align: center;
+    -moz-appearance: textfield;
+  }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type="number"]:focus { outline: none; border-color: var(--dim); }
+  input[type="number"]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .unit { font-size: 12px; letter-spacing: 0.1em; color: var(--dimmer); }
+
+  .toggles { flex-direction: row; gap: 6px; flex-wrap: wrap; }
+
+  .hint {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: var(--dimmer);
+    text-align: center;
+  }
+  @media (hover: none) { .hint { display: none; } }
+
+  /* ---------- progress hairline ---------- */
+
+  .progress {
+    position: fixed;
+    left: 0; bottom: 0;
+    height: 2px;
+    width: 100%;
+    background: var(--fg);
+    transform: scaleX(0);
+    transform-origin: left center;
+    pointer-events: none;
+  }
+  body.is-break .progress { background: var(--dim); }
+
+  /* ---------- flash ---------- */
+
+  .flash {
+    position: fixed;
+    inset: 0;
+    background: var(--fg);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .flash.blink-work { animation: blink 0.62s steps(1, end) 1; }
+  .flash.blink-break { animation: blink-soft 0.4s ease-out 1; }
+
+  @keyframes blink {
+    0%, 24% { opacity: 0.92; }
+    25%, 49% { opacity: 0; }
+    50%, 74% { opacity: 0.92; }
+    75%, 100% { opacity: 0; }
+  }
+  @keyframes blink-soft {
+    0% { opacity: 0.55; }
+    100% { opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .flash.blink-work, .flash.blink-break { animation-duration: 0.3s; }
+    * { transition-duration: 0.01ms !important; }
+  }
+
+  @media (max-height: 560px) {
+    body { gap: 14px; }
+    .settings { max-width: 560px; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="readout">
+    <div class="phase" id="phase">Ready</div>
+    <div class="time" id="time">00:30</div>
+    <div class="round" id="round" aria-live="polite"></div>
+  </div>
+
+  <div class="controls">
+    <button id="startBtn">Start</button>
+    <button id="resetBtn">Reset</button>
+  </div>
+
+  <section class="settings" id="settings" aria-label="Timer settings">
+
+    <div class="row">
+      <span class="label" id="lbl-work">Interval</span>
+      <div class="chips" id="workChips" role="group" aria-labelledby="lbl-work">
+        <button class="chip" data-sec="30">30 sec</button>
+        <button class="chip" data-sec="60">1 min</button>
+        <button class="chip" data-sec="600">10 min</button>
+        <button class="chip" data-custom="1">Custom</button>
+      </div>
+      <div class="custom" id="workCustom" hidden>
+        <input type="number" id="workMin" min="0" max="999" step="1" value="0" inputmode="numeric" aria-label="Interval minutes">
+        <span class="unit">min</span>
+        <input type="number" id="workSec" min="0" max="59" step="1" value="45" inputmode="numeric" aria-label="Interval seconds">
+        <span class="unit">sec</span>
+      </div>
+    </div>
+
+    <div class="row">
+      <span class="label" id="lbl-break">Break between intervals</span>
+      <div class="chips" id="breakChips" role="group" aria-labelledby="lbl-break">
+        <button class="chip" data-sec="0">None</button>
+        <button class="chip" data-sec="10">10 sec</button>
+        <button class="chip" data-sec="30">30 sec</button>
+        <button class="chip" data-sec="60">1 min</button>
+        <button class="chip" data-custom="1">Custom</button>
+      </div>
+      <div class="custom" id="breakCustom" hidden>
+        <input type="number" id="breakMin" min="0" max="999" step="1" value="0" inputmode="numeric" aria-label="Break minutes">
+        <span class="unit">min</span>
+        <input type="number" id="breakSec" min="0" max="59" step="1" value="15" inputmode="numeric" aria-label="Break seconds">
+        <span class="unit">sec</span>
+      </div>
+    </div>
+
+    <div class="row">
+      <span class="label" id="lbl-rounds">Rounds</span>
+      <div class="chips" id="roundChips" role="group" aria-labelledby="lbl-rounds">
+        <button class="chip" data-rounds="0">Keep going</button>
+        <button class="chip" data-custom="1">Stop after</button>
+      </div>
+      <div class="custom" id="roundCustom" hidden>
+        <input type="number" id="roundCount" min="1" max="999" step="1" value="8" inputmode="numeric" aria-label="Number of rounds">
+        <span class="unit">rounds</span>
+      </div>
+    </div>
+
+    <div class="row toggles" role="group" aria-label="Alerts">
+      <button class="chip" id="soundToggle" aria-pressed="true">Sound</button>
+      <button class="chip" id="flashToggle" aria-pressed="true">Flash</button>
+      <button class="chip" id="wakeToggle" aria-pressed="true">Keep screen on</button>
+    </div>
+
+    <p class="hint">Space to start or pause &middot; R to reset</p>
+  </section>
+
+  <div class="flash" id="flash" aria-hidden="true"></div>
+  <div class="progress" id="progress" aria-hidden="true"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- elements ----------
+  var el = {
+    phase: document.getElementById("phase"),
+    time: document.getElementById("time"),
+    round: document.getElementById("round"),
+    start: document.getElementById("startBtn"),
+    reset: document.getElementById("resetBtn"),
+    flash: document.getElementById("flash"),
+    progress: document.getElementById("progress"),
+    workChips: document.getElementById("workChips"),
+    breakChips: document.getElementById("breakChips"),
+    roundChips: document.getElementById("roundChips"),
+    workCustom: document.getElementById("workCustom"),
+    breakCustom: document.getElementById("breakCustom"),
+    roundCustom: document.getElementById("roundCustom"),
+    workMin: document.getElementById("workMin"),
+    workSec: document.getElementById("workSec"),
+    breakMin: document.getElementById("breakMin"),
+    breakSec: document.getElementById("breakSec"),
+    roundCount: document.getElementById("roundCount"),
+    sound: document.getElementById("soundToggle"),
+    flashOpt: document.getElementById("flashToggle"),
+    wake: document.getElementById("wakeToggle")
+  };
+
+  // ---------- settings ----------
+  var settings = {
+    workPreset: 30,      // seconds, or null when custom
+    breakPreset: 0,
+    roundPreset: 0,      // 0 = unlimited, or null when custom
+    sound: true,
+    flash: true,
+    wake: true
+  };
+
+  function clampInt(value, lo, hi, fallback) {
+    var n = parseInt(value, 10);
+    if (isNaN(n)) n = fallback;
+    return Math.min(hi, Math.max(lo, n));
+  }
+
+  function workSeconds() {
+    if (settings.workPreset !== null) return settings.workPreset;
+    var s = clampInt(el.workMin.value, 0, 999, 0) * 60 + clampInt(el.workSec.value, 0, 59, 0);
+    return Math.max(1, s);
+  }
+
+  function breakSeconds() {
+    if (settings.breakPreset !== null) return settings.breakPreset;
+    return clampInt(el.breakMin.value, 0, 999, 0) * 60 + clampInt(el.breakSec.value, 0, 59, 0);
+  }
+
+  function totalRounds() {
+    if (settings.roundPreset !== null) return settings.roundPreset;
+    return clampInt(el.roundCount.value, 1, 999, 1);
+  }
+
+  // ---------- state ----------
+  var state = {
+    mode: "idle",        // idle | running | paused | done
+    phase: "work",       // work | break
+    round: 1,
+    endAt: 0,            // wall-clock ms when the current phase ends
+    phaseTotal: 0,       // ms
+    remaining: 0,        // ms left, captured on pause
+    lastTickSecond: -1
+  };
+
+  // ---------- audio ----------
+  var ctx = null;
+
+  function initAudio() {
+    if (!settings.sound) return;
+    try {
+      if (!ctx) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        ctx = new AC();
+      }
+      if (ctx.state === "suspended") ctx.resume();
+    } catch (e) { ctx = null; }
+  }
+
+  function beep(freq, duration, delay, volume) {
+    if (!settings.sound || !ctx) return;
+    try {
+      var t = ctx.currentTime + (delay || 0);
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(volume || 0.3, t + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + duration + 0.03);
+    } catch (e) { /* audio is optional */ }
+  }
+
+  function cueWork()   { beep(880, 0.16, 0); beep(880, 0.24, 0.22); }
+  function cueBreak()  { beep(494, 0.32, 0); }
+  function cueFinish() { beep(660, 0.16, 0); beep(880, 0.16, 0.18); beep(1175, 0.5, 0.36); }
+  function cueTick()   { beep(1320, 0.05, 0, 0.14); }
+
+  // ---------- flash ----------
+  function doFlash(kind) {
+    if (!settings.flash) return;
+    var cls = kind === "work" ? "blink-work" : "blink-break";
+    el.flash.classList.remove("blink-work", "blink-break");
+    void el.flash.offsetWidth;   // restart the animation
+    el.flash.classList.add(cls);
+  }
+  el.flash.addEventListener("animationend", function () {
+    el.flash.classList.remove("blink-work", "blink-break");
+  });
+
+  // ---------- wake lock ----------
+  var wakeLock = null;
+
+  function requestWake() {
+    if (!settings.wake || !("wakeLock" in navigator)) return;
+    navigator.wakeLock.request("screen").then(function (lock) {
+      wakeLock = lock;
+      lock.addEventListener("release", function () { wakeLock = null; });
+    }).catch(function () { /* denied or unsupported */ });
+  }
+
+  function releaseWake() {
+    if (wakeLock) { wakeLock.release().catch(function () {}); wakeLock = null; }
+  }
+
+  // ---------- formatting ----------
+  function pad(n) { return n < 10 ? "0" + n : String(n); }
+
+  function formatMs(ms) {
+    var total = Math.max(0, Math.ceil(ms / 1000));
+    var h = Math.floor(total / 3600);
+    var m = Math.floor((total % 3600) / 60);
+    var s = total % 60;
+    return h > 0 ? h + ":" + pad(m) + ":" + pad(s) : pad(m) + ":" + pad(s);
+  }
+
+  // ---------- phase machine ----------
+  function startPhase(phase, seconds, fromTime) {
+    state.phase = phase;
+    state.phaseTotal = seconds * 1000;
+    state.endAt = fromTime + state.phaseTotal;
+    state.lastTickSecond = -1;
+    document.body.classList.toggle("is-break", phase === "break");
+  }
+
+  // Moves to whatever comes after the phase that just ended.
+  // Returns false when the workout is over.
+  function advance(prevEnd, announce) {
+    var limit = totalRounds();          // 0 = unlimited
+    var brk = breakSeconds();
+
+    if (state.phase === "work") {
+      var lastRound = limit > 0 && state.round >= limit;
+      if (lastRound) return false;
+      if (brk > 0) {
+        startPhase("break", brk, prevEnd);
+        if (announce) { cueBreak(); doFlash("break"); }
+        return true;
+      }
+      state.round += 1;
+      startPhase("work", workSeconds(), prevEnd);
+      if (announce) { cueWork(); doFlash("work"); }
+      return true;
+    }
+
+    state.round += 1;
+    startPhase("work", workSeconds(), prevEnd);
+    if (announce) { cueWork(); doFlash("work"); }
+    return true;
+  }
+
+  function finish() {
+    state.mode = "done";
+    state.remaining = 0;
+    document.body.classList.remove("is-running", "is-paused", "is-break");
+    document.body.classList.add("is-done");
+    el.start.textContent = "Start";
+    cueFinish();
+    doFlash("work");
+    releaseWake();
+    render(0);
+  }
+
+  // ---------- rendering ----------
+  function render(msLeft) {
+    var left, total;
+
+    if (state.mode === "idle") {
+      left = workSeconds() * 1000;
+      total = left;
+    } else if (state.mode === "paused") {
+      left = state.remaining;
+      total = state.phaseTotal;
+    } else if (state.mode === "done") {
+      left = 0;
+      total = state.phaseTotal || 1;
+    } else {
+      left = msLeft;
+      total = state.phaseTotal;
+    }
+
+    el.time.textContent = formatMs(left);
+
+    if (state.mode === "idle") {
+      el.phase.textContent = "Ready";
+    } else if (state.mode === "done") {
+      el.phase.textContent = "Done";
+    } else if (state.mode === "paused") {
+      el.phase.textContent = "Paused";
+    } else {
+      el.phase.textContent = state.phase === "work" ? "Go" : "Break";
+    }
+
+    var limit = totalRounds();
+    if (state.mode === "idle") {
+      el.round.textContent = limit > 0 ? limit + " rounds" : "";
+    } else if (state.mode === "done") {
+      el.round.textContent = state.round + (state.round === 1 ? " round done" : " rounds done");
+    } else {
+      el.round.textContent = "Round " + state.round + (limit > 0 ? " / " + limit : "");
+    }
+
+    var ratio = state.mode === "idle" || state.mode === "done" ? 0 : Math.max(0, Math.min(1, left / total));
+    el.progress.style.transform = "scaleX(" + ratio + ")";
+
+    document.title = (state.mode === "running" || state.mode === "paused")
+      ? formatMs(left) + " \u00B7 " + (state.phase === "work" ? "Go" : "Break")
+      : "Interval Timer";
+  }
+
+  // ---------- loop ----------
+  function frame() {
+    if (state.mode === "running") {
+      var now = Date.now();
+      var left = state.endAt - now;
+      var guard = 0;
+
+      while (left <= 0 && guard < 5000) {
+        guard += 1;
+        var prevEnd = state.endAt;
+        var onTime = now - prevEnd < 1500;   // skip cues for phases missed while backgrounded
+        if (!advance(prevEnd, onTime)) { finish(); return requestAnimationFrame(frame); }
+        left = state.endAt - now;
+      }
+
+      var secondsLeft = Math.ceil(left / 1000);
+      if (secondsLeft !== state.lastTickSecond) {
+        if (secondsLeft <= 3 && secondsLeft >= 1 && state.phaseTotal > 4000) cueTick();
+        state.lastTickSecond = secondsLeft;
+      }
+
+      render(left);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- controls ----------
+  function start() {
+    initAudio();
+    requestWake();
+
+    if (state.mode === "idle" || state.mode === "done") {
+      state.round = 1;
+      document.body.classList.remove("is-done");
+      startPhase("work", workSeconds(), Date.now());
+      cueWork();
+      doFlash("work");
+    } else if (state.mode === "paused") {
+      state.endAt = Date.now() + state.remaining;
+    }
+
+    state.mode = "running";
+    document.body.classList.add("is-running");
+    document.body.classList.remove("is-paused");
+    el.start.textContent = "Pause";
+  }
+
+  function pause() {
+    state.remaining = Math.max(0, state.endAt - Date.now());
+    state.mode = "paused";
+    document.body.classList.remove("is-running");
+    document.body.classList.add("is-paused");
+    el.start.textContent = "Resume";
+    releaseWake();
+    render();
+  }
+
+  function reset() {
+    state.mode = "idle";
+    state.phase = "work";
+    state.round = 1;
+    state.remaining = 0;
+    document.body.classList.remove("is-running", "is-paused", "is-break", "is-done");
+    el.start.textContent = "Start";
+    releaseWake();
+    render();
+  }
+
+  el.start.addEventListener("click", function () {
+    if (state.mode === "running") pause(); else start();
+    el.start.blur();
+  });
+
+  el.reset.addEventListener("click", function () {
+    reset();
+    el.reset.blur();
+  });
+
+  document.addEventListener("keydown", function (e) {
+    var typing = e.target && (e.target.tagName === "INPUT");
+    if (e.code === "Space" && !typing) {
+      e.preventDefault();
+      if (state.mode === "running") pause(); else start();
+    } else if ((e.key === "r" || e.key === "R") && !typing) {
+      e.preventDefault();
+      reset();
+    }
+  });
+
+  // ---------- settings wiring ----------
+  function wireChips(group, customPanel, key) {
+    var chips = group.querySelectorAll(".chip");
+
+    function select(chip) {
+      for (var i = 0; i < chips.length; i++) {
+        chips[i].setAttribute("aria-pressed", chips[i] === chip ? "true" : "false");
+      }
+      var isCustom = chip.hasAttribute("data-custom");
+      customPanel.hidden = !isCustom;
+
+      if (isCustom) {
+        settings[key] = null;
+      } else if (key === "roundPreset") {
+        settings[key] = parseInt(chip.getAttribute("data-rounds"), 10);
+      } else {
+        settings[key] = parseInt(chip.getAttribute("data-sec"), 10);
+      }
+      if (state.mode === "idle") render();
+      else render(state.endAt - Date.now());
+    }
+
+    group.addEventListener("click", function (e) {
+      var chip = e.target.closest(".chip");
+      if (chip) { select(chip); chip.blur(); }
+    });
+
+    return select;
+  }
+
+  var selectWork = wireChips(el.workChips, el.workCustom, "workPreset");
+  var selectBreak = wireChips(el.breakChips, el.breakCustom, "breakPreset");
+  var selectRounds = wireChips(el.roundChips, el.roundCustom, "roundPreset");
+
+  selectWork(el.workChips.querySelector('[data-sec="30"]'));
+  selectBreak(el.breakChips.querySelector('[data-sec="0"]'));
+  selectRounds(el.roundChips.querySelector('[data-rounds="0"]'));
+
+  [el.workMin, el.workSec, el.breakMin, el.breakSec, el.roundCount].forEach(function (input) {
+    input.addEventListener("input", function () {
+      if (state.mode === "idle") render();
+      else render(state.endAt - Date.now());
+    });
+    input.addEventListener("blur", function () {
+      var lo = parseInt(input.min, 10), hi = parseInt(input.max, 10);
+      input.value = clampInt(input.value, lo, hi, lo);
+    });
+  });
+
+  function wireToggle(button, key, onEnable) {
+    button.addEventListener("click", function () {
+      settings[key] = !settings[key];
+      button.setAttribute("aria-pressed", settings[key] ? "true" : "false");
+      if (settings[key] && onEnable) onEnable();
+      if (!settings[key] && key === "wake") releaseWake();
+      button.blur();
+    });
+  }
+
+  wireToggle(el.sound, "sound", initAudio);
+  wireToggle(el.flashOpt, "flash");
+  wireToggle(el.wake, "wake", function () { if (state.mode === "running") requestWake(); });
+
+  // Re-acquire the wake lock after the tab comes back into view.
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible" && state.mode === "running") requestWake();
+  });
+
+  // ---------- go ----------
+  render();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
