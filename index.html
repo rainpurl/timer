@@ -1,202 +1,137 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#000000">
-<meta name="description" content="A minimal repeating interval timer.">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Interval Timer</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23000'/><circle cx='50' cy='50' r='30' fill='none' stroke='%23fff' stroke-width='8'/></svg>">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="description" content="A minimal Pomodoro and repeating interval timer.">
+<title>Timer</title>
+
+<!--
+  Live radio uses a hidden YouTube embed; no audio file is needed.
+  YouTube still streams video internally. Host this page on HTTP(S):
+  opening it as a local file can cause YouTube playback errors.
+-->
+
 <style>
   :root {
+    color-scheme: dark;
     --bg: #000;
     --fg: #fff;
-    --dim: #767676;
-    --dimmer: #3a3a3a;
-    --line: #1f1f1f;
-    --focus: #fff;
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   }
 
-  * { box-sizing: border-box; }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #fff;
+    --fg: #000;
+  }
 
-  html, body { height: 100%; }
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
 
-  body {
+  html, body {
     margin: 0;
     background: var(--bg);
     color: var(--fg);
-    font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  body {
+    min-height: 100vh;
+    min-height: 100svh;
+    display: grid;
+    place-items: center;
+    padding: 24px;
     -webkit-font-smoothing: antialiased;
+  }
+
+  button, input { font: inherit; }
+
+  button, a, input {
     -webkit-tap-highlight-color: transparent;
-    overscroll-behavior: none;
-    user-select: none;
-    -webkit-user-select: none;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: clamp(20px, 4vh, 40px);
-    padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
-             max(28px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
   }
-
-  /* ---------- readout ---------- */
-
-  .readout { text-align: center; line-height: 1; }
-
-  .phase {
-    font-size: 13px;
-    letter-spacing: 0.32em;
-    text-transform: uppercase;
-    color: var(--dim);
-    margin-bottom: clamp(10px, 2vh, 18px);
-    transition: color 0.25s ease;
-  }
-
-  .time {
-    font-size: clamp(4.5rem, 24vw, 13rem);
-    font-weight: 200;
-    letter-spacing: -0.04em;
-    font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum" 1;
-    transition: color 0.25s ease, opacity 0.25s ease;
-  }
-
-  .round {
-    font-size: 13px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--dimmer);
-    margin-top: clamp(10px, 2vh, 18px);
-    min-height: 1em;
-  }
-
-  /* break phase reads as "resting": digits recede */
-  body.is-break .time { color: var(--dim); }
-  body.is-break .phase { color: var(--dim); }
-  body.is-paused .time { opacity: 0.35; }
-
-  /* ---------- controls ---------- */
-
-  .controls { display: flex; gap: 10px; }
 
   button {
-    font: inherit;
-    font-size: 13px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--fg);
-    background: transparent;
-    border: 1px solid var(--line);
-    border-radius: 2px;
-    padding: 14px 22px;
-    cursor: pointer;
-    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
-    touch-action: manipulation;
-  }
-
-  button:hover { border-color: var(--dim); }
-  button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-
-  #startBtn {
-    border-color: var(--fg);
-    min-width: 148px;
-  }
-  #startBtn:hover { background: var(--fg); color: var(--bg); }
-
-  #resetBtn { color: var(--dim); }
-  #resetBtn:hover { color: var(--fg); }
-
-  /* ---------- settings ---------- */
-
-  .settings {
-    width: 100%;
-    max-width: 460px;
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-    transition: opacity 0.3s ease;
-  }
-  body.is-running .settings, body.is-paused .settings { opacity: 0.3; }
-  .settings:hover, .settings:focus-within { opacity: 1 !important; }
-
-  .row { display: flex; flex-direction: column; gap: 8px; }
-
-  .label {
-    font-size: 11px;
-    letter-spacing: 0.24em;
-    text-transform: uppercase;
-    color: var(--dimmer);
-  }
-
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-
-  .chip {
-    padding: 9px 14px;
-    font-size: 12px;
-    letter-spacing: 0.1em;
-    color: var(--dim);
-    border-color: var(--line);
-    text-transform: none;
-  }
-  .chip:hover { color: var(--fg); }
-  .chip[aria-pressed="true"] { color: var(--bg); background: var(--fg); border-color: var(--fg); }
-
-  .custom {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
-    margin-top: 2px;
-  }
-  .custom[hidden] { display: none; }
-
-  input[type="number"] {
-    font: inherit;
-    font-size: 15px;
-    font-variant-numeric: tabular-nums;
-    width: 74px;
-    padding: 9px 10px;
+    justify-content: center;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--bg);
     color: var(--fg);
-    background: transparent;
-    border: 1px solid var(--line);
-    border-radius: 2px;
-    text-align: center;
-    -moz-appearance: textfield;
+    cursor: pointer;
   }
-  input[type="number"]::-webkit-outer-spin-button,
-  input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-  input[type="number"]:focus { outline: none; border-color: var(--dim); }
-  input[type="number"]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-  .unit { font-size: 12px; letter-spacing: 0.1em; color: var(--dimmer); }
-
-  .toggles { flex-direction: row; gap: 6px; flex-wrap: wrap; }
-
-  .hint {
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    color: var(--dimmer);
-    text-align: center;
+  a {
+    color: inherit;
+    text-underline-offset: 4px;
   }
-  @media (hover: none) { .hint { display: none; } }
 
-  /* ---------- progress hairline ---------- */
+  :focus-visible {
+    outline: 2px solid var(--fg);
+    outline-offset: 4px;
+  }
+
+  ::selection {
+    background: var(--fg);
+    color: var(--bg);
+  }
+
+  .app {
+    width: 100%;
+    max-width: 360px;
+  }
+
+  .modes {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .modes button {
+    padding-inline: 2px;
+    border-radius: 0;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .modes button[aria-pressed="true"],
+  .kinds button[aria-pressed="true"] {
+    text-decoration: underline;
+    text-underline-offset: 8px;
+    text-decoration-thickness: 2px;
+  }
+
+  .kinds {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .kinds button {
+    border-radius: 0;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .time { transition: opacity .25s ease; }
+  .time.dim { opacity: .45; }
 
   .progress {
     position: fixed;
-    left: 0; bottom: 0;
-    height: 2px;
+    left: 0;
+    bottom: 0;
     width: 100%;
+    height: 2px;
     background: var(--fg);
     transform: scaleX(0);
     transform-origin: left center;
     pointer-events: none;
   }
-  body.is-break .progress { background: var(--dim); }
-
-  /* ---------- flash ---------- */
 
   .flash {
     position: fixed;
@@ -206,505 +141,2081 @@
     pointer-events: none;
     z-index: 10;
   }
-  .flash.blink-work { animation: blink 0.62s steps(1, end) 1; }
-  .flash.blink-break { animation: blink-soft 0.4s ease-out 1; }
+
+  .flash.blink-work { animation: blink .62s steps(1, end) 1; }
+  .flash.blink-break { animation: blink-soft .4s ease-out 1; }
 
   @keyframes blink {
-    0%, 24% { opacity: 0.92; }
+    0%, 24% { opacity: .92; }
     25%, 49% { opacity: 0; }
-    50%, 74% { opacity: 0.92; }
+    50%, 74% { opacity: .92; }
     75%, 100% { opacity: 0; }
   }
+
   @keyframes blink-soft {
-    0% { opacity: 0.55; }
+    0% { opacity: .55; }
     100% { opacity: 0; }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .flash.blink-work, .flash.blink-break { animation-duration: 0.3s; }
-    * { transition-duration: 0.01ms !important; }
+    .flash.blink-work, .flash.blink-break { animation-duration: .3s; }
+    .time { transition: none; }
   }
 
-  @media (max-height: 560px) {
-    body { gap: 14px; }
-    .settings { max-width: 560px; }
+  .pair {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .time {
+    padding: 42px 0 36px;
+    text-align: center;
+    font-size: clamp(72px, 22vw, 112px);
+    line-height: 1;
+    font-weight: 450;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.065em;
+  }
+
+  .time.wide {
+    font-size: clamp(56px, 18vw, 88px);
+  }
+
+  .controls {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .primary {
+    min-height: 46px;
+    border-radius: 99px;
+    background: var(--fg);
+    color: var(--bg);
+    font-size: 14px;
+  }
+
+  .icon {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex-shrink: 0;
+  }
+
+  .sounds { margin-top: 32px; }
+
+  .sound-row {
+    display: grid;
+    grid-template-columns: 132px minmax(0, 1fr);
+    gap: 24px;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .sound-toggle {
+    justify-content: flex-start;
+    gap: 10px;
+    padding-left: 0;
+    font-size: 12px;
+  }
+
+  .sound-toggle .pause-mark { display: none; }
+
+  .sound-toggle[aria-pressed="true"] .play-mark {
+    display: none;
+  }
+
+  .sound-toggle[aria-pressed="true"] .pause-mark {
+    display: block;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    min-width: 0;
+    height: 36px;
+    margin: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    background: var(--bg);
+    color: var(--fg);
+    cursor: pointer;
+  }
+
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 1px;
+    background: var(--fg);
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    width: 10px;
+    height: 10px;
+    margin-top: -4.5px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--fg);
+    -webkit-appearance: none;
+  }
+
+  input[type="range"]::-moz-range-track {
+    height: 1px;
+    background: var(--fg);
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--fg);
+  }
+
+  .message {
+    margin: 8px 0 0;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+
+  .message a {
+    display: inline-block;
+    margin-left: 4px;
+  }
+
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+    font-size: 11px;
+  }
+
+  .footer-tools {
+    display: flex;
+    gap: 2px;
+  }
+
+  .footer button {
+    width: 40px;
+    min-height: 40px;
+    padding: 0;
+  }
+
+  .footer .icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  dialog {
+    width: calc(100% - 32px);
+    max-width: 360px;
+    max-height: calc(100dvh - 32px);
+    overflow: auto;
+    padding: 22px;
+    border: 1px solid var(--fg);
+    border-radius: 12px;
+    background: var(--bg);
+    color: var(--fg);
+  }
+
+  dialog::backdrop { background: var(--bg); }
+
+  .dialog-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .dialog-head h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 550;
+  }
+
+  .dialog-head button {
+    width: 40px;
+    padding: 0;
+  }
+
+  .lengths {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin: 18px 0;
+  }
+
+  .lengths label {
+    display: grid;
+    gap: 8px;
+    font-size: 11px;
+  }
+
+  input[type="number"] {
+    width: 100%;
+    min-width: 0;
+    min-height: 40px;
+    padding: 8px;
+    border: 1px solid var(--fg);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--fg);
+    font-size: 16px;
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+
+  input::-webkit-inner-spin-button,
+  input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .setting {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    min-height: 46px;
+    font-size: 12px;
+  }
+
+  .setting input[type="number"] {
+    width: 56px;
+    text-align: center;
+  }
+
+  input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    display: grid;
+    place-content: center;
+    width: 17px;
+    height: 17px;
+    margin: 0;
+    flex-shrink: 0;
+    border: 1px solid var(--fg);
+    border-radius: 3px;
+    background: var(--bg);
+    cursor: pointer;
+  }
+
+  input[type="checkbox"]:checked {
+    background: var(--fg);
+  }
+
+  input[type="checkbox"]:checked::after {
+    content: "";
+    width: 5px;
+    height: 9px;
+    margin-top: -2px;
+    border: solid var(--bg);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+
+  .volume-setting {
+    display: grid;
+    grid-template-columns: 1fr 44px;
+    gap: 12px;
+  }
+
+  .volume-setting button {
+    padding: 0;
+    font-size: 11px;
+    text-decoration: underline;
+  }
+
+  .dialog-note {
+    margin: 14px 0;
+    font-size: 10px;
+    line-height: 1.6;
+  }
+
+  .dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .dialog-actions button { font-size: 12px; }
+
+  .dialog-actions .primary {
+    min-width: 90px;
+    min-height: 40px;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* Keep the video out of view without using display:none. */
+  #youtube-host {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 200px;
+    height: 200px;
+    opacity: 0;
+    pointer-events: none;
+    z-index: -1;
+    overflow: hidden;
+  }
+
+  #youtube-host iframe {
+    width: 200px;
+    height: 200px;
+    border: 0;
+  }
+
+  @media (hover: hover) {
+    button:hover {
+      text-decoration: underline;
+      text-underline-offset: 4px;
+    }
   }
 </style>
 </head>
-<body>
 
-  <div class="readout">
-    <div class="phase" id="phase">Ready</div>
-    <div class="time" id="time">00:30</div>
-    <div class="round" id="round" aria-live="polite"></div>
-  </div>
+<body>
+<main class="app" aria-label="Timer">
+  <nav class="kinds" aria-label="Timer type">
+    <button type="button" data-kind="pomodoro" aria-pressed="true">Pomodoro</button>
+    <button type="button" data-kind="interval" aria-pressed="false">Interval</button>
+  </nav>
+
+  <nav class="modes" id="pomodoro-modes" aria-label="Timer mode">
+    <button type="button" data-mode="work" aria-pressed="true">Focus</button>
+    <button type="button" data-mode="short" aria-pressed="false">Short break</button>
+    <button type="button" data-mode="long" aria-pressed="false">Long break</button>
+  </nav>
+
+  <nav class="modes" id="interval-presets" aria-label="Interval length" hidden>
+    <button type="button" data-sec="30" aria-pressed="false">30 sec</button>
+    <button type="button" data-sec="60" aria-pressed="false">1 min</button>
+    <button type="button" data-sec="600" aria-pressed="false">10 min</button>
+  </nav>
+
+  <div class="time" id="time" role="timer" aria-live="off">25:00</div>
 
   <div class="controls">
-    <button id="startBtn">Start</button>
-    <button id="resetBtn">Reset</button>
+    <button id="reset" type="button" aria-label="Reset timer" title="Reset">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 10a9 9 0 1 1 2.6 8.4M3 4v6h6"/>
+      </svg>
+    </button>
+
+    <button class="primary" id="toggle" type="button">Start</button>
+
+    <button id="skip" type="button" aria-label="Skip session" title="Skip">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m5 5 10 7-10 7ZM19 5v14"/>
+      </svg>
+    </button>
   </div>
 
-  <section class="settings" id="settings" aria-label="Timer settings">
+  <section class="sounds" aria-label="Background audio">
+    <div class="sound-row">
+      <button class="sound-toggle" id="radio-toggle" type="button"
+        aria-pressed="false" aria-label="Play live radio">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path class="play-mark" d="m8 5 11 7-11 7Z"/>
+          <path class="pause-mark" d="M8 5v14M16 5v14" stroke-width="3"/>
+        </svg>
+        Live radio
+      </button>
 
-    <div class="row">
-      <span class="label" id="lbl-work">Interval</span>
-      <div class="chips" id="workChips" role="group" aria-labelledby="lbl-work">
-        <button class="chip" data-sec="30">30 sec</button>
-        <button class="chip" data-sec="60">1 min</button>
-        <button class="chip" data-sec="600">10 min</button>
-        <button class="chip" data-custom="1">Custom</button>
-      </div>
-      <div class="custom" id="workCustom" hidden>
-        <input type="number" id="workMin" min="0" max="999" step="1" value="0" inputmode="numeric" aria-label="Interval minutes">
-        <span class="unit">min</span>
-        <input type="number" id="workSec" min="0" max="59" step="1" value="45" inputmode="numeric" aria-label="Interval seconds">
-        <span class="unit">sec</span>
-      </div>
+      <input id="radio-volume" type="range" min="0" max="100" value="35"
+        aria-label="Live radio volume">
     </div>
 
-    <div class="row">
-      <span class="label" id="lbl-break">Break between intervals</span>
-      <div class="chips" id="breakChips" role="group" aria-labelledby="lbl-break">
-        <button class="chip" data-sec="0">None</button>
-        <button class="chip" data-sec="10">10 sec</button>
-        <button class="chip" data-sec="30">30 sec</button>
-        <button class="chip" data-sec="60">1 min</button>
-        <button class="chip" data-custom="1">Custom</button>
-      </div>
-      <div class="custom" id="breakCustom" hidden>
-        <input type="number" id="breakMin" min="0" max="999" step="1" value="0" inputmode="numeric" aria-label="Break minutes">
-        <span class="unit">min</span>
-        <input type="number" id="breakSec" min="0" max="59" step="1" value="15" inputmode="numeric" aria-label="Break seconds">
-        <span class="unit">sec</span>
-      </div>
+    <div class="sound-row">
+      <button class="sound-toggle" id="noise-toggle" type="button"
+        aria-pressed="false" aria-label="Play deep pink noise">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path class="play-mark" d="m8 5 11 7-11 7Z"/>
+          <path class="pause-mark" d="M8 5v14M16 5v14" stroke-width="3"/>
+        </svg>
+        Deep noise
+      </button>
+
+      <input id="noise-volume" type="range" min="0" max="100" value="45"
+        aria-label="Deep pink noise volume">
     </div>
 
-    <div class="row">
-      <span class="label" id="lbl-rounds">Rounds</span>
-      <div class="chips" id="roundChips" role="group" aria-labelledby="lbl-rounds">
-        <button class="chip" data-rounds="0">Keep going</button>
-        <button class="chip" data-custom="1">Stop after</button>
-      </div>
-      <div class="custom" id="roundCustom" hidden>
-        <input type="number" id="roundCount" min="1" max="999" step="1" value="8" inputmode="numeric" aria-label="Number of rounds">
-        <span class="unit">rounds</span>
-      </div>
-    </div>
+    <p class="message" id="radio-message" role="status" hidden>
+      <span id="radio-message-text"></span>
+      <a id="stream-link"
+        href="https://www.youtube.com/watch?v=3PFJ9SETS4M"
+        target="_blank" rel="noopener noreferrer" hidden>Open stream ↗</a>
+    </p>
 
-    <div class="row toggles" role="group" aria-label="Alerts">
-      <button class="chip" id="soundToggle" aria-pressed="true">Sound</button>
-      <button class="chip" id="flashToggle" aria-pressed="true">Flash</button>
-      <button class="chip" id="wakeToggle" aria-pressed="true">Keep screen on</button>
-    </div>
-
-    <p class="hint">Space to start or pause &middot; R to reset</p>
+    <p class="message" id="noise-message" role="status" hidden></p>
   </section>
 
-  <div class="flash" id="flash" aria-hidden="true"></div>
-  <div class="progress" id="progress" aria-hidden="true"></div>
+  <footer class="footer">
+    <span id="cycle">0 / 4 sessions</span>
+
+    <div class="footer-tools">
+      <button id="theme" type="button"
+        aria-label="Switch to light mode" title="Light mode">
+        <svg class="icon" id="sun" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"/>
+          <path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>
+        </svg>
+        <svg class="icon" id="moon" viewBox="0 0 24 24" aria-hidden="true" hidden>
+          <path d="M21 13a9 9 0 0 1-10-10 9 9 0 1 0 10 10Z"/>
+        </svg>
+      </button>
+
+      <button id="settings-open" type="button"
+        aria-label="Open settings" aria-haspopup="dialog" title="Settings">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 7h9m4 0h3M4 17h3m4 0h9"/>
+          <circle cx="15" cy="7" r="2"/>
+          <circle cx="9" cy="17" r="2"/>
+        </svg>
+      </button>
+    </div>
+  </footer>
+</main>
+
+<div class="progress" id="progress" aria-hidden="true" hidden></div>
+<div class="flash" id="flash" aria-hidden="true"></div>
+
+<div id="youtube-host" aria-hidden="true" inert></div>
+
+<div id="announcement" class="sr-only" role="status"
+  aria-live="polite" aria-atomic="true"></div>
+
+<dialog id="settings" aria-labelledby="settings-title">
+  <form id="settings-form">
+    <div class="dialog-head">
+      <h2 id="settings-title">Settings</h2>
+      <button id="settings-close" type="button" aria-label="Close settings">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m6 6 12 12M18 6 6 18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div id="settings-pomodoro">
+    <div class="lengths">
+      <label>
+        Focus · min
+        <input name="work" type="number" min="1" max="180" step="1" required>
+      </label>
+      <label>
+        Short · min
+        <input name="short" type="number" min="1" max="60" step="1" required>
+      </label>
+      <label>
+        Long · min
+        <input name="long" type="number" min="1" max="120" step="1" required>
+      </label>
+    </div>
+
+    <label class="setting">
+      Sessions per cycle
+      <input name="rounds" type="number" min="1" max="12" step="1" required>
+    </label>
+    <label class="setting">
+      Start breaks automatically
+      <input name="autoBreaks" type="checkbox">
+    </label>
+    <label class="setting">
+      Start focus automatically
+      <input name="autoFocus" type="checkbox">
+    </label>
+    </div>
+
+    <div id="settings-interval" hidden>
+      <div class="setting">
+        <span id="iv-work-label">Interval length</span>
+        <span class="pair" role="group" aria-labelledby="iv-work-label">
+          <input name="ivWorkMin" type="number" min="0" max="999" step="1" required aria-label="Interval minutes">
+          min
+          <input name="ivWorkSec" type="number" min="0" max="59" step="1" required aria-label="Interval seconds">
+          sec
+        </span>
+      </div>
+      <div class="setting">
+        <span id="iv-break-label">Break between</span>
+        <span class="pair" role="group" aria-labelledby="iv-break-label">
+          <input name="ivBreakMin" type="number" min="0" max="999" step="1" required aria-label="Break minutes">
+          min
+          <input name="ivBreakSec" type="number" min="0" max="59" step="1" required aria-label="Break seconds">
+          sec
+        </span>
+      </div>
+      <label class="setting">
+        Rounds · 0 keeps going
+        <input name="ivRounds" type="number" min="0" max="999" step="1" required>
+      </label>
+      <label class="setting">
+        Flash on change
+        <input name="ivFlash" type="checkbox">
+      </label>
+      <label class="setting">
+        Keep screen on
+        <input name="ivWake" type="checkbox">
+      </label>
+    </div>
+
+    <label class="setting">
+      Audio follows timer
+      <input name="followAudio" type="checkbox">
+    </label>
+    <label class="setting">
+      Timer sound cues
+      <input name="sound" type="checkbox">
+    </label>
+
+    <label class="setting" for="cue-volume">Cue volume</label>
+    <div class="volume-setting">
+      <input id="cue-volume" name="volume" type="range" min="0" max="100">
+      <button id="test-sound" type="button">Test</button>
+    </div>
+
+    <p class="dialog-note">
+      Changing the active duration resets its timer. Selected audio pauses
+      during breaks when “Audio follows timer” is on. Interval changes apply
+      from the next interval. Space starts or pauses. R resets.
+    </p>
+
+    <div class="dialog-actions">
+      <button id="settings-cancel" type="button">Cancel</button>
+      <button class="primary" type="submit">Save</button>
+    </div>
+  </form>
+</dialog>
 
 <script>
-(function () {
+(() => {
   "use strict";
 
-  // ---------- elements ----------
-  var el = {
-    phase: document.getElementById("phase"),
-    time: document.getElementById("time"),
-    round: document.getElementById("round"),
-    start: document.getElementById("startBtn"),
-    reset: document.getElementById("resetBtn"),
-    flash: document.getElementById("flash"),
-    progress: document.getElementById("progress"),
-    workChips: document.getElementById("workChips"),
-    breakChips: document.getElementById("breakChips"),
-    roundChips: document.getElementById("roundChips"),
-    workCustom: document.getElementById("workCustom"),
-    breakCustom: document.getElementById("breakCustom"),
-    roundCustom: document.getElementById("roundCustom"),
-    workMin: document.getElementById("workMin"),
-    workSec: document.getElementById("workSec"),
-    breakMin: document.getElementById("breakMin"),
-    breakSec: document.getElementById("breakSec"),
-    roundCount: document.getElementById("roundCount"),
-    sound: document.getElementById("soundToggle"),
-    flashOpt: document.getElementById("flashToggle"),
-    wake: document.getElementById("wakeToggle")
+  const $ = id => document.getElementById(id);
+  const KEY = "pomodoro.minimal.v1";
+  const VIDEO = "3PFJ9SETS4M";
+  const MIN = 60000;
+
+  const NAMES = {
+    work: "Focus",
+    short: "Short break",
+    long: "Long break"
   };
 
-  // ---------- settings ----------
-  var settings = {
-    workPreset: 30,      // seconds, or null when custom
-    breakPreset: 0,
-    roundPreset: 0,      // 0 = unlimited, or null when custom
+  const DEFAULTS = {
+    work: 25,
+    short: 5,
+    long: 15,
+    rounds: 4,
+    autoBreaks: true,
+    autoFocus: false,
+    followAudio: true,
     sound: true,
-    flash: true,
-    wake: true
+    volume: 50,
+    theme: "dark",
+    radioVolume: 35,
+    noiseVolume: 45,
+    kind: "pomodoro",
+    ivWork: 30,
+    ivBreak: 0,
+    ivRounds: 0,
+    ivFlash: true,
+    ivWake: true
   };
 
-  function clampInt(value, lo, hi, fallback) {
-    var n = parseInt(value, 10);
-    if (isNaN(n)) n = fallback;
-    return Math.min(hi, Math.max(lo, n));
-  }
+  let prefs = { ...DEFAULTS };
 
-  function workSeconds() {
-    if (settings.workPreset !== null) return settings.workPreset;
-    var s = clampInt(el.workMin.value, 0, 999, 0) * 60 + clampInt(el.workSec.value, 0, 59, 0);
-    return Math.max(1, s);
-  }
+  let state = {
+    mode: "work",
+    remaining: 25 * MIN,
+    deadline: null,
+    cycle: 0
+  };
 
-  function breakSeconds() {
-    if (settings.breakPreset !== null) return settings.breakPreset;
-    return clampInt(el.breakMin.value, 0, 999, 0) * 60 + clampInt(el.breakSec.value, 0, 59, 0);
-  }
-
-  function totalRounds() {
-    if (settings.roundPreset !== null) return settings.roundPreset;
-    return clampInt(el.roundCount.value, 1, 999, 1);
-  }
-
-  // ---------- state ----------
-  var state = {
-    mode: "idle",        // idle | running | paused | done
-    phase: "work",       // work | break
+  // Interval timer state. Only the active kind ever runs.
+  const iv = {
+    mode: "idle",      // idle | running | paused | done
+    phase: "work",     // work | break
     round: 1,
-    endAt: 0,            // wall-clock ms when the current phase ends
-    phaseTotal: 0,       // ms
-    remaining: 0,        // ms left, captured on pause
-    lastTickSecond: -1
+    deadline: null,    // wall-clock ms when the phase ends, while running
+    remaining: 0,      // ms left while paused
+    total: 0,          // ms length of the current phase
+    tick: -1           // last countdown second that was announced
   };
 
-  // ---------- audio ----------
-  var ctx = null;
+  let wakeLock = null;
 
-  function initAudio() {
-    if (!settings.sound) return;
+  let ticker = null;
+  let lastSecond = null;
+  let context = null;
+  let cueId = 0;
+  let apiPromise = null;
+
+  const voices = new Set();
+  const modes = [...document.querySelectorAll("[data-mode]")];
+  const kinds = [...document.querySelectorAll("[data-kind]")];
+  const presets = [...document.querySelectorAll("#interval-presets [data-sec]")];
+  const form = $("settings-form");
+
+  const radio = {
+    enabled: false,
+    wanted: false,
+    playing: false,
+    player: null,
+    ready: false,
+    boot: null,
+    epoch: 0,
+    watchdog: null
+  };
+
+  const noise = {
+    enabled: false,
+    wanted: false,
+    node: null,
+    gain: null,
+    buffer: null,
+    ticket: 0
+  };
+
+  function int(value, min, max, fallback) {
+    return Number.isInteger(value) && value >= min && value <= max
+      ? value : fallback;
+  }
+
+  function duration() {
+    return prefs[state.mode] * MIN;
+  }
+
+  function running() {
+    return state.deadline !== null;
+  }
+
+  function left() {
+    return running()
+      ? Math.max(0, state.deadline - Date.now())
+      : state.remaining;
+  }
+
+  function announce(text) {
+    $("announcement").textContent = text;
+  }
+
+  function save() {
     try {
-      if (!ctx) {
-        var AC = window.AudioContext || window.webkitAudioContext;
-        if (!AC) return;
-        ctx = new AC();
-      }
-      if (ctx.state === "suspended") ctx.resume();
-    } catch (e) { ctx = null; }
+      localStorage.setItem(KEY, JSON.stringify({
+        version: 6,
+        preferences: prefs,
+        state: { ...state, remaining: left() },
+        interval: {
+          mode: iv.mode === "running" || iv.mode === "paused" ? iv.mode : "idle",
+          phase: iv.phase,
+          round: iv.round,
+          total: iv.total,
+          deadline: iv.deadline,
+          remaining: ivLeft()
+        }
+      }));
+    } catch {}
   }
 
-  function beep(freq, duration, delay, volume) {
-    if (!settings.sound || !ctx) return;
+  function restore() {
     try {
-      var t = ctx.currentTime + (delay || 0);
-      var osc = ctx.createOscillator();
-      var gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(freq, t);
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(volume || 0.3, t + 0.012);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(t);
-      osc.stop(t + duration + 0.03);
-    } catch (e) { /* audio is optional */ }
-  }
+      const saved = JSON.parse(
+        localStorage.getItem(KEY) ||
+        localStorage.getItem("pomodoro.focus.v2")
+      );
 
-  function cueWork()   { beep(880, 0.16, 0); beep(880, 0.24, 0.22); }
-  function cueBreak()  { beep(494, 0.32, 0); }
-  function cueFinish() { beep(660, 0.16, 0); beep(880, 0.16, 0.18); beep(1175, 0.5, 0.36); }
-  function cueTick()   { beep(1320, 0.05, 0, 0.14); }
+      if (!saved || ![2, 3, 4, 5, 6].includes(saved.version)) return;
 
-  // ---------- flash ----------
-  function doFlash(kind) {
-    if (!settings.flash) return;
-    var cls = kind === "work" ? "blink-work" : "blink-break";
-    el.flash.classList.remove("blink-work", "blink-break");
-    void el.flash.offsetWidth;   // restart the animation
-    el.flash.classList.add(cls);
-  }
-  el.flash.addEventListener("animationend", function () {
-    el.flash.classList.remove("blink-work", "blink-break");
-  });
+      const p = saved.preferences || {};
 
-  // ---------- wake lock ----------
-  var wakeLock = null;
+      prefs.work = int(p.work, 1, 180, 25);
+      prefs.short = int(p.short, 1, 60, 5);
+      prefs.long = int(p.long, 1, 120, 15);
+      prefs.rounds = int(p.rounds, 1, 12, 4);
 
-  function requestWake() {
-    if (!settings.wake || !("wakeLock" in navigator)) return;
-    navigator.wakeLock.request("screen").then(function (lock) {
-      wakeLock = lock;
-      lock.addEventListener("release", function () { wakeLock = null; });
-    }).catch(function () { /* denied or unsupported */ });
-  }
-
-  function releaseWake() {
-    if (wakeLock) { wakeLock.release().catch(function () {}); wakeLock = null; }
-  }
-
-  // ---------- formatting ----------
-  function pad(n) { return n < 10 ? "0" + n : String(n); }
-
-  function formatMs(ms) {
-    var total = Math.max(0, Math.ceil(ms / 1000));
-    var h = Math.floor(total / 3600);
-    var m = Math.floor((total % 3600) / 60);
-    var s = total % 60;
-    return h > 0 ? h + ":" + pad(m) + ":" + pad(s) : pad(m) + ":" + pad(s);
-  }
-
-  // ---------- phase machine ----------
-  function startPhase(phase, seconds, fromTime) {
-    state.phase = phase;
-    state.phaseTotal = seconds * 1000;
-    state.endAt = fromTime + state.phaseTotal;
-    state.lastTickSecond = -1;
-    document.body.classList.toggle("is-break", phase === "break");
-  }
-
-  // Moves to whatever comes after the phase that just ended.
-  // Returns false when the workout is over.
-  function advance(prevEnd, announce) {
-    var limit = totalRounds();          // 0 = unlimited
-    var brk = breakSeconds();
-
-    if (state.phase === "work") {
-      var lastRound = limit > 0 && state.round >= limit;
-      if (lastRound) return false;
-      if (brk > 0) {
-        startPhase("break", brk, prevEnd);
-        if (announce) { cueBreak(); doFlash("break"); }
-        return true;
+      for (const key of ["autoBreaks", "autoFocus", "sound", "followAudio"]) {
+        if (typeof p[key] === "boolean") prefs[key] = p[key];
       }
-      state.round += 1;
-      startPhase("work", workSeconds(), prevEnd);
-      if (announce) { cueWork(); doFlash("work"); }
-      return true;
+
+      if (
+        typeof p.followAudio !== "boolean" &&
+        typeof p.followMusic === "boolean"
+      ) {
+        prefs.followAudio = p.followMusic;
+      }
+
+      prefs.volume = int(p.volume, 0, 100, 50);
+      prefs.radioVolume = int(
+        p.radioVolume, 0, 100,
+        int(p.trackVolume, 0, 100, 35)
+      );
+      prefs.noiseVolume = int(p.noiseVolume, 0, 100, 45);
+      prefs.theme = p.theme === "light" ? "light" : "dark";
+
+      prefs.kind = p.kind === "interval" ? "interval" : "pomodoro";
+      prefs.ivWork = int(p.ivWork, 1, 59999, 30);
+      prefs.ivBreak = int(p.ivBreak, 0, 59999, 0);
+      prefs.ivRounds = int(p.ivRounds, 0, 999, 0);
+
+      for (const key of ["ivFlash", "ivWake"]) {
+        if (typeof p[key] === "boolean") prefs[key] = p[key];
+      }
+
+      const s = saved.state || {};
+
+      state.mode = Object.hasOwn(NAMES, s.mode) ? s.mode : "work";
+
+      state.remaining = Number.isFinite(s.remaining)
+        ? Math.max(0, Math.min(duration(), s.remaining))
+        : duration();
+
+      state.deadline = Number.isFinite(s.deadline) && s.deadline > 0
+        ? Math.min(s.deadline, Date.now() + duration())
+        : null;
+
+      state.cycle = int(s.cycle, 0, prefs.rounds, 0);
+
+      if (state.mode === "work" && state.cycle >= prefs.rounds) {
+        state.cycle = 0;
+      }
+
+      if (!running() && state.remaining <= 0) {
+        state.remaining = duration();
+      }
+
+      const v = saved.interval || {};
+      const total = Number.isFinite(v.total) ? v.total : 0;
+
+      if (v.mode === "running" && Number.isFinite(v.deadline) && total > 0) {
+        iv.mode = "running";
+        iv.deadline = v.deadline;
+      } else if (v.mode === "paused" && Number.isFinite(v.remaining) && total > 0) {
+        iv.mode = "paused";
+        iv.remaining = Math.max(0, Math.min(total, v.remaining));
+      }
+
+      if (iv.mode !== "idle") {
+        iv.phase = v.phase === "break" ? "break" : "work";
+        iv.round = int(v.round, 1, 999, 1);
+        iv.total = total;
+      }
+    } catch {}
+  }
+
+  function renderClock() {
+    const seconds = Math.ceil((isInterval() ? ivLeft() : left()) / 1000);
+    if (seconds === lastSecond) return;
+
+    lastSecond = seconds;
+
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    const text =
+      String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+
+    $("time").textContent = text;
+    $("time").classList.toggle("wide", m >= 100);
+    $("time").setAttribute(
+      "aria-label",
+      m + " minutes, " + s + " seconds remaining"
+    );
+
+    document.title = isInterval()
+      ? text + " · " + ivLabel() + " — Interval"
+      : text + " · " + NAMES[state.mode] + " — Pomodoro";
+  }
+
+  function renderAudio() {
+    $("radio-toggle").setAttribute(
+      "aria-pressed",
+      String(radio.enabled)
+    );
+    $("radio-toggle").setAttribute(
+      "aria-label",
+      radio.enabled ? "Turn off live radio" : "Play live radio"
+    );
+
+    $("noise-toggle").setAttribute(
+      "aria-pressed",
+      String(noise.enabled)
+    );
+    $("noise-toggle").setAttribute(
+      "aria-label",
+      noise.enabled ? "Turn off deep pink noise" : "Play deep pink noise"
+    );
+  }
+
+  function render() {
+    document.documentElement.dataset.theme = prefs.theme;
+    $("sun").hidden = prefs.theme !== "dark";
+    $("moon").hidden = prefs.theme !== "light";
+
+    const themeLabel =
+      "Switch to " + (prefs.theme === "dark" ? "light" : "dark") + " mode";
+
+    $("theme").setAttribute("aria-label", themeLabel);
+    $("theme").title = themeLabel;
+
+    for (const button of modes) {
+      button.setAttribute(
+        "aria-pressed",
+        String(button.dataset.mode === state.mode)
+      );
     }
 
-    state.round += 1;
-    startPhase("work", workSeconds(), prevEnd);
-    if (announce) { cueWork(); doFlash("work"); }
-    return true;
+    const interval = isInterval();
+
+    for (const button of kinds) {
+      button.setAttribute(
+        "aria-pressed",
+        String(button.dataset.kind === prefs.kind)
+      );
+    }
+
+    for (const button of presets) {
+      button.setAttribute(
+        "aria-pressed",
+        String(Number(button.dataset.sec) === prefs.ivWork)
+      );
+    }
+
+    $("pomodoro-modes").hidden = interval;
+    $("interval-presets").hidden = !interval;
+
+    if (interval) {
+      renderInterval();
+    } else {
+      $("toggle").textContent = running()
+        ? "Pause"
+        : state.remaining < duration() ? "Resume" : "Start";
+
+      $("cycle").textContent =
+        state.cycle + " / " + prefs.rounds + " sessions";
+    }
+
+    $("time").classList.toggle(
+      "dim",
+      interval && (iv.mode === "paused" || (iv.mode === "running" && iv.phase === "break"))
+    );
+
+    renderAudio();
+    lastSecond = null;
+    renderClock();
+    renderProgress();
+  }
+
+  function enter(mode, start = false) {
+    state.mode = mode;
+
+    if (mode === "work" && state.cycle >= prefs.rounds) {
+      state.cycle = 0;
+    }
+
+    state.remaining = duration();
+    state.deadline = start ? Date.now() + state.remaining : null;
+  }
+
+  function commit(sync = true, gesture = false) {
+    save();
+    render();
+    tick();
+
+    if (sync) syncAudio(gesture);
   }
 
   function finish() {
-    state.mode = "done";
-    state.remaining = 0;
-    document.body.classList.remove("is-running", "is-paused", "is-break");
-    document.body.classList.add("is-done");
-    el.start.textContent = "Start";
-    cueFinish();
-    doFlash("work");
+    const old = state.mode;
+
+    if (old === "work") state.cycle++;
+
+    const next = old === "work"
+      ? state.cycle >= prefs.rounds ? "long" : "short"
+      : "work";
+
+    const start = next === "work" ? prefs.autoFocus : prefs.autoBreaks;
+
+    enter(next, start);
+    commit();
+    cue("finish");
+
+    announce(
+      NAMES[old] + " complete. " +
+      NAMES[next] + (start ? " started." : " ready.")
+    );
+  }
+
+  function settle() {
+    if (running() && left() <= 0) {
+      finish();
+      return true;
+    }
+
+    return false;
+  }
+
+  function tick() {
+    clearTimeout(ticker);
+
+    if (isInterval()) {
+      if (ivSettle()) return;
+
+      ivCountdown();
+      renderClock();
+      renderProgress();
+
+      if (iv.mode === "running") ticker = setTimeout(tick, 250);
+      return;
+    }
+
+    if (settle()) return;
+
+    renderClock();
+
+    if (running()) ticker = setTimeout(tick, 250);
+  }
+
+  function toggleTimer() {
+    if (isInterval()) {
+      ivToggle();
+      return;
+    }
+
+    if (settle()) return;
+
+    if (running()) {
+      state.remaining = left();
+      state.deadline = null;
+
+      commit();
+      cue("pause", true);
+      announce("Timer paused.");
+    } else {
+      state.deadline = Date.now() + state.remaining;
+
+      commit(true, true);
+      cue("start", true);
+      announce(NAMES[state.mode] + " started.");
+    }
+  }
+
+  /* Interval mode */
+
+  function isInterval() {
+    return prefs.kind === "interval";
+  }
+
+  function ivLeft() {
+    if (iv.mode === "running") return Math.max(0, iv.deadline - Date.now());
+    if (iv.mode === "paused") return iv.remaining;
+    return iv.mode === "done" ? 0 : prefs.ivWork * 1000;
+  }
+
+  function ivLabel() {
+    if (iv.mode === "idle") return "Ready";
+    if (iv.mode === "done") return "Done";
+    if (iv.mode === "paused") return "Paused";
+    return iv.phase === "work" ? "Go" : "Break";
+  }
+
+  function ivBegin(phase, seconds, from) {
+    iv.phase = phase;
+    iv.total = seconds * 1000;
+    iv.deadline = from + iv.total;
+    iv.tick = -1;
+  }
+
+  // Moves to whatever follows the phase that ended at `end`.
+  // Returns false when the last round is over.
+  function ivAdvance(end, loud) {
+    if (iv.phase === "work") {
+      if (prefs.ivRounds > 0 && iv.round >= prefs.ivRounds) return false;
+
+      if (prefs.ivBreak > 0) {
+        ivBegin("break", prefs.ivBreak, end);
+
+        if (loud) {
+          cue("rest");
+          flash("break");
+        }
+
+        return true;
+      }
+    }
+
+    iv.round++;
+    ivBegin("work", prefs.ivWork, end);
+
+    if (loud) {
+      cue("go");
+      flash("work");
+    }
+
+    return true;
+  }
+
+  function ivFinish(loud) {
+    iv.mode = "done";
+    iv.deadline = null;
+    iv.remaining = 0;
+
     releaseWake();
-    render(0);
+    commit();
+
+    if (loud) {
+      cue("done");
+      flash("work");
+    }
+
+    announce(
+      "Intervals complete. " + iv.round +
+      (iv.round === 1 ? " round done." : " rounds done.")
+    );
   }
 
-  // ---------- rendering ----------
-  function render(msLeft) {
-    var left, total;
+  function ivSettle() {
+    if (iv.mode !== "running") return false;
 
-    if (state.mode === "idle") {
-      left = workSeconds() * 1000;
-      total = left;
-    } else if (state.mode === "paused") {
-      left = state.remaining;
-      total = state.phaseTotal;
-    } else if (state.mode === "done") {
-      left = 0;
-      total = state.phaseTotal || 1;
-    } else {
-      left = msLeft;
-      total = state.phaseTotal;
-    }
+    const now = Date.now();
+    let moved = false;
 
-    el.time.textContent = formatMs(left);
+    for (let guard = 0; now >= iv.deadline && guard < 5000; guard++) {
+      const end = iv.deadline;
+      const loud = now - end < 1500;   // stay quiet for phases missed in the background
 
-    if (state.mode === "idle") {
-      el.phase.textContent = "Ready";
-    } else if (state.mode === "done") {
-      el.phase.textContent = "Done";
-    } else if (state.mode === "paused") {
-      el.phase.textContent = "Paused";
-    } else {
-      el.phase.textContent = state.phase === "work" ? "Go" : "Break";
-    }
-
-    var limit = totalRounds();
-    if (state.mode === "idle") {
-      el.round.textContent = limit > 0 ? limit + " rounds" : "";
-    } else if (state.mode === "done") {
-      el.round.textContent = state.round + (state.round === 1 ? " round done" : " rounds done");
-    } else {
-      el.round.textContent = "Round " + state.round + (limit > 0 ? " / " + limit : "");
-    }
-
-    var ratio = state.mode === "idle" || state.mode === "done" ? 0 : Math.max(0, Math.min(1, left / total));
-    el.progress.style.transform = "scaleX(" + ratio + ")";
-
-    document.title = (state.mode === "running" || state.mode === "paused")
-      ? formatMs(left) + " \u00B7 " + (state.phase === "work" ? "Go" : "Break")
-      : "Interval Timer";
-  }
-
-  // ---------- loop ----------
-  function frame() {
-    if (state.mode === "running") {
-      var now = Date.now();
-      var left = state.endAt - now;
-      var guard = 0;
-
-      while (left <= 0 && guard < 5000) {
-        guard += 1;
-        var prevEnd = state.endAt;
-        var onTime = now - prevEnd < 1500;   // skip cues for phases missed while backgrounded
-        if (!advance(prevEnd, onTime)) { finish(); return requestAnimationFrame(frame); }
-        left = state.endAt - now;
+      if (!ivAdvance(end, loud)) {
+        ivFinish(loud);
+        return true;
       }
 
-      var secondsLeft = Math.ceil(left / 1000);
-      if (secondsLeft !== state.lastTickSecond) {
-        if (secondsLeft <= 3 && secondsLeft >= 1 && state.phaseTotal > 4000) cueTick();
-        state.lastTickSecond = secondsLeft;
-      }
-
-      render(left);
+      moved = true;
     }
-    requestAnimationFrame(frame);
+
+    if (moved) {
+      commit();
+      announce(ivLabel() + ". Round " + iv.round + ".");
+    }
+
+    return moved;
   }
 
-  // ---------- controls ----------
-  function start() {
-    initAudio();
+  // Short ticks during the last three seconds of a phase.
+  function ivCountdown() {
+    if (iv.mode !== "running") return;
+
+    const seconds = Math.ceil(ivLeft() / 1000);
+    if (seconds === iv.tick) return;
+
+    iv.tick = seconds;
+
+    if (seconds >= 1 && seconds <= 3 && iv.total > 4000) cue("tick");
+  }
+
+  function renderInterval() {
+    $("toggle").textContent =
+      iv.mode === "running" ? "Pause" : iv.mode === "paused" ? "Resume" : "Start";
+
+    const limit = prefs.ivRounds;
+    let rounds;
+
+    if (iv.mode === "idle") {
+      rounds = limit > 0
+        ? limit + (limit === 1 ? " round" : " rounds")
+        : "Open ended";
+    } else if (iv.mode === "done") {
+      rounds = iv.round + (iv.round === 1 ? " round done" : " rounds done");
+    } else {
+      rounds = "Round " + iv.round + (limit > 0 ? " / " + limit : "");
+    }
+
+    $("cycle").textContent = ivLabel() + " · " + rounds;
+  }
+
+  function renderProgress() {
+    const bar = $("progress");
+
+    bar.hidden = !isInterval();
+    if (bar.hidden) return;
+
+    const active = iv.mode === "running" || iv.mode === "paused";
+    const ratio = active && iv.total > 0
+      ? Math.max(0, Math.min(1, ivLeft() / iv.total))
+      : 0;
+
+    bar.style.transform = "scaleX(" + ratio + ")";
+    bar.style.opacity = iv.phase === "break" ? ".5" : "1";
+  }
+
+  function requestWake() {
+    if (!prefs.ivWake || wakeLock || !("wakeLock" in navigator)) return;
+
+    navigator.wakeLock.request("screen").then(lock => {
+      if (!isInterval() || iv.mode !== "running") {
+        lock.release().catch(() => {});
+        return;
+      }
+
+      wakeLock = lock;
+
+      lock.addEventListener("release", () => {
+        if (wakeLock === lock) wakeLock = null;
+      });
+    }).catch(() => {});
+  }
+
+  function releaseWake() {
+    const lock = wakeLock;
+    wakeLock = null;
+
+    if (lock) lock.release().catch(() => {});
+  }
+
+  function flash(kind) {
+    if (!prefs.ivFlash) return;
+
+    const el = $("flash");
+
+    el.classList.remove("blink-work", "blink-break");
+    void el.offsetWidth;   // restart the animation
+    el.classList.add(kind === "work" ? "blink-work" : "blink-break");
+  }
+
+  function ivPause() {
+    iv.remaining = ivLeft();
+    iv.deadline = null;
+    iv.mode = "paused";
+    releaseWake();
+  }
+
+  function ivToggle() {
+    if (ivSettle()) return;
+
+    if (iv.mode === "running") {
+      ivPause();
+
+      commit();
+      cue("pause", true);
+      announce("Timer paused.");
+      return;
+    }
+
+    if (iv.mode === "paused") {
+      iv.deadline = Date.now() + iv.remaining;
+      iv.mode = "running";
+      iv.tick = -1;
+      requestWake();
+
+      commit(true, true);
+      cue("start", true);
+      announce("Timer resumed.");
+      return;
+    }
+
+    iv.round = 1;
+    iv.mode = "running";
+    ivBegin("work", prefs.ivWork, Date.now());
     requestWake();
 
-    if (state.mode === "idle" || state.mode === "done") {
-      state.round = 1;
-      document.body.classList.remove("is-done");
-      startPhase("work", workSeconds(), Date.now());
-      cueWork();
-      doFlash("work");
-    } else if (state.mode === "paused") {
-      state.endAt = Date.now() + state.remaining;
-    }
-
-    state.mode = "running";
-    document.body.classList.add("is-running");
-    document.body.classList.remove("is-paused");
-    el.start.textContent = "Pause";
+    commit(true, true);
+    cue("go", true);
+    flash("work");
+    announce("Interval started.");
   }
 
-  function pause() {
-    state.remaining = Math.max(0, state.endAt - Date.now());
-    state.mode = "paused";
-    document.body.classList.remove("is-running");
-    document.body.classList.add("is-paused");
-    el.start.textContent = "Resume";
+  function ivReset() {
+    iv.mode = "idle";
+    iv.phase = "work";
+    iv.round = 1;
+    iv.deadline = null;
+    iv.remaining = 0;
+    iv.total = 0;
     releaseWake();
-    render();
+
+    commit();
+    cue("reset", true);
+    announce("Timer reset.");
   }
 
-  function reset() {
-    state.mode = "idle";
-    state.phase = "work";
-    state.round = 1;
-    state.remaining = 0;
-    document.body.classList.remove("is-running", "is-paused", "is-break", "is-done");
-    el.start.textContent = "Start";
-    releaseWake();
-    render();
+  function ivSkip() {
+    if (iv.mode !== "running" && iv.mode !== "paused") return;
+
+    const paused = iv.mode === "paused";
+
+    if (!ivAdvance(Date.now(), false)) {
+      ivFinish(true);
+      return;
+    }
+
+    if (paused) {
+      iv.remaining = iv.total;
+      iv.deadline = null;
+    }
+
+    commit();
+    cue("skip", true);
+    announce((iv.phase === "work" ? "Go" : "Break") + ". Round " + iv.round + ".");
   }
 
-  el.start.addEventListener("click", function () {
-    if (state.mode === "running") pause(); else start();
-    el.start.blur();
+  function setKind(next) {
+    if (next === prefs.kind) return;
+
+    if (isInterval()) {
+      ivSettle();
+      if (iv.mode === "running") ivPause();
+    } else {
+      settle();
+
+      if (running()) {
+        state.remaining = left();
+        state.deadline = null;
+      }
+    }
+
+    prefs.kind = next;
+
+    commit(true, true);
+    announce((next === "interval" ? "Interval" : "Pomodoro") + " timer.");
+  }
+
+  /* Notification sounds */
+
+  async function audioContext(gesture = false) {
+    if (!context && gesture) {
+      const Audio = window.AudioContext || window.webkitAudioContext;
+      if (Audio) context = new Audio();
+    }
+
+    if (context && context.state === "suspended" && gesture) {
+      await context.resume();
+    }
+
+    return context && context.state === "running" ? context : null;
+  }
+
+  function silenceCues() {
+    cueId++;
+
+    for (const voice of voices) {
+      try { voice.stop(); } catch {}
+    }
+
+    voices.clear();
+  }
+
+  async function cue(type, gesture = false, preview = null) {
+    const volume = preview === null ? prefs.volume : preview;
+
+    if ((preview === null && !prefs.sound) || volume <= 0) return;
+
+    const ticket = ++cueId;
+
+    try {
+      const ctx = await audioContext(gesture);
+      if (!ctx || ticket !== cueId) return;
+
+      for (const voice of voices) {
+        try { voice.stop(); } catch {}
+      }
+
+      voices.clear();
+
+      const patterns = {
+        start: [[523, 0, .12], [659, .14, .2]],
+        pause: [[659, 0, .1], [523, .12, .18]],
+        reset: [[392, 0, .2]],
+        skip: [[523, 0, .08], [784, .12, .15]],
+        finish: [
+          [523, 0, .2],
+          [659, .24, .2],
+          [784, .48, .4],
+          [659, 1, .2],
+          [1047, 1.24, .5]
+        ],
+        // Interval cues. A fourth value scales that note's level.
+        go: [[880, 0, .16], [880, .22, .24]],
+        rest: [[494, 0, .32]],
+        done: [[660, 0, .16], [880, .18, .16], [1175, .36, .5]],
+        tick: [[1320, 0, .05, .45]]
+      };
+
+      const start = ctx.currentTime + .01;
+
+      for (const [frequency, offset, length, level = 1] of patterns[type] || patterns.start) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const at = start + offset;
+
+        osc.type = "sine";
+        osc.frequency.value = frequency;
+
+        gain.gain.setValueAtTime(0, at);
+        gain.gain.linearRampToValueAtTime(.14 * volume / 100 * level, at + .015);
+        gain.gain.exponentialRampToValueAtTime(.0001, at + length);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        voices.add(osc);
+
+        osc.onended = () => {
+          voices.delete(osc);
+          osc.disconnect();
+          gain.disconnect();
+        };
+
+        osc.start(at);
+        osc.stop(at + length + .025);
+      }
+    } catch {}
+  }
+
+  /* Stereo pink noise, with a seamless loop and softer high frequencies. */
+
+  function makePinkBuffer(ctx) {
+    const size = Math.floor(ctx.sampleRate * 12);
+    const fade = Math.floor(ctx.sampleRate * .25);
+    const buffer = ctx.createBuffer(2, size, ctx.sampleRate);
+
+    for (let channel = 0; channel < 2; channel++) {
+      const rows = new Float64Array(16);
+      let sum = 0;
+
+      for (let row = 0; row < 16; row++) {
+        rows[row] = Math.random() * 2 - 1;
+        sum += rows[row];
+      }
+
+      const raw = new Float32Array(size + fade);
+
+      for (let i = 0; i < raw.length; i++) {
+        let bits = (i + 1) & 65535;
+        let row = 0;
+
+        while ((bits & 1) === 0 && row < 15) {
+          bits >>>= 1;
+          row++;
+        }
+
+        const value = Math.random() * 2 - 1;
+        sum += value - rows[row];
+        rows[row] = value;
+
+        raw[i] = (sum + Math.random() * 2 - 1) * .065;
+      }
+
+      const out = buffer.getChannelData(channel);
+      out.set(raw.subarray(0, size));
+
+      for (let i = 0; i < fade; i++) {
+        const angle = i / (fade - 1) * Math.PI / 2;
+
+        out[i] =
+          raw[size + i] * Math.cos(angle) +
+          raw[i] * Math.sin(angle);
+      }
+
+      let peak = 0;
+
+      for (let i = 0; i < size; i++) {
+        peak = Math.max(peak, Math.abs(out[i]));
+      }
+
+      const scale = .6 / Math.max(.001, peak);
+
+      for (let i = 0; i < size; i++) {
+        out[i] *= scale;
+      }
+    }
+
+    return buffer;
+  }
+
+  function noiseLevel() {
+    return .9 * Math.pow(prefs.noiseVolume / 100, 1.8);
+  }
+
+  async function startNoise(gesture = false) {
+    if (!noise.wanted || noise.node) return;
+
+    const ticket = ++noise.ticket;
+
+    try {
+      const ctx = await audioContext(gesture);
+
+      if (ticket !== noise.ticket || !noise.wanted) return;
+      if (!ctx) throw new Error("Tap Deep noise again to enable audio.");
+
+      if (!noise.buffer) noise.buffer = makePinkBuffer(ctx);
+
+      const source = ctx.createBufferSource();
+      const high = ctx.createBiquadFilter();
+      const low = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+
+      source.buffer = noise.buffer;
+      source.loop = true;
+
+      high.type = "highpass";
+      high.frequency.value = 25;
+      high.Q.value = .707;
+
+      low.type = "lowpass";
+      low.frequency.value = 1000;
+      low.Q.value = .707;
+
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(
+        noiseLevel(),
+        ctx.currentTime + .12
+      );
+
+      source.connect(high);
+      high.connect(low);
+      low.connect(gain);
+      gain.connect(ctx.destination);
+
+      noise.node = source;
+      noise.gain = gain;
+
+      source.onended = () => {
+        source.disconnect();
+        high.disconnect();
+        low.disconnect();
+        gain.disconnect();
+      };
+
+      source.start(0, Math.random() * noise.buffer.duration);
+      $("noise-message").hidden = true;
+    } catch (error) {
+      if (ticket !== noise.ticket) return;
+
+      noise.enabled = false;
+      noise.wanted = false;
+
+      $("noise-message").textContent =
+        error.message || "Audio is unavailable in this browser.";
+      $("noise-message").hidden = false;
+    }
+
+    renderAudio();
+  }
+
+  function stopNoise() {
+    noise.ticket++;
+
+    const node = noise.node;
+    const gain = noise.gain;
+
+    noise.node = null;
+    noise.gain = null;
+
+    if (!node) return;
+
+    try {
+      const now = context.currentTime;
+
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setTargetAtTime(0, now, .025);
+      node.stop(now + .15);
+    } catch {
+      try { node.stop(); } catch {}
+    }
+  }
+
+  /* Hidden YouTube live-stream player */
+
+  function radioMessage(text = "", link = false) {
+    $("radio-message-text").textContent = text;
+    $("stream-link").hidden = !link;
+    $("radio-message").hidden = !text;
+  }
+
+  function loadAPI() {
+    if (window.YT && window.YT.Player) {
+      return Promise.resolve(window.YT);
+    }
+
+    if (apiPromise) return apiPromise;
+
+    apiPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      const previous = window.onYouTubeIframeAPIReady;
+
+      const timeout = setTimeout(() => {
+        script.remove();
+        reject(new Error("YouTube could not load. Tap Live radio to retry."));
+      }, 15000);
+
+      window.onYouTubeIframeAPIReady = () => {
+        clearTimeout(timeout);
+
+        try {
+          if (typeof previous === "function") previous();
+        } catch {}
+
+        resolve(window.YT);
+      };
+
+      script.src = "https://www.youtube.com/iframe_api";
+      script.async = true;
+
+      script.onerror = () => {
+        clearTimeout(timeout);
+        script.remove();
+
+        reject(new Error(
+          "YouTube is blocked or unavailable. Tap Live radio to retry."
+        ));
+      };
+
+      document.head.appendChild(script);
+    }).catch(error => {
+      apiPromise = null;
+      throw error;
+    });
+
+    return apiPromise;
+  }
+
+  function failRadio(message) {
+    radio.epoch++;
+    clearTimeout(radio.watchdog);
+
+    radio.enabled = false;
+    radio.wanted = false;
+    radio.playing = false;
+    radio.ready = false;
+
+    try {
+      if (radio.player) radio.player.destroy();
+    } catch {}
+
+    radio.player = null;
+    radio.boot = null;
+
+    $("youtube-host").replaceChildren();
+    radioMessage(message, true);
+    renderAudio();
+  }
+
+  function ensureRadio() {
+    if (radio.ready) return Promise.resolve(radio.player);
+    if (radio.boot) return radio.boot;
+
+    const epoch = ++radio.epoch;
+
+    radio.boot = (async () => {
+      const YT = await loadAPI();
+
+      if (epoch !== radio.epoch) return null;
+
+      return await new Promise((resolve, reject) => {
+        const url = new URL(
+          "https://www.youtube-nocookie.com/embed/" + VIDEO
+        );
+
+        const params = {
+          enablejsapi: "1",
+          autoplay: "0",
+          playsinline: "1",
+          controls: "0",
+          rel: "0"
+        };
+
+        if (
+          /^https?:$/.test(location.protocol) &&
+          location.origin !== "null"
+        ) {
+          params.origin = location.origin;
+        }
+
+        for (const [key, value] of Object.entries(params)) {
+          url.searchParams.set(key, value);
+        }
+
+        const iframe = document.createElement("iframe");
+        iframe.title = "YouTube live radio audio source";
+        iframe.tabIndex = -1;
+        iframe.width = "200";
+        iframe.height = "200";
+        iframe.allow = "autoplay; encrypted-media";
+        iframe.referrerPolicy = "strict-origin-when-cross-origin";
+        iframe.src = url.href;
+
+        $("youtube-host").replaceChildren(iframe);
+
+        const timeout = setTimeout(() => {
+          reject(new Error(
+            "The stream did not respond. Tap Live radio to retry."
+          ));
+        }, 18000);
+
+        radio.player = new YT.Player(iframe, {
+          events: {
+            onReady(event) {
+              clearTimeout(timeout);
+
+              if (epoch !== radio.epoch) {
+                event.target.destroy();
+                resolve(null);
+                return;
+              }
+
+              radio.player = event.target;
+              radio.ready = true;
+
+              event.target.setVolume(prefs.radioVolume);
+              resolve(event.target);
+            },
+
+            onStateChange(event) {
+              if (epoch !== radio.epoch) return;
+
+              if (event.data === 1) {
+                if (!radio.wanted) {
+                  event.target.pauseVideo();
+                  return;
+                }
+
+                radio.playing = true;
+                clearTimeout(radio.watchdog);
+                radioMessage();
+              } else if (event.data === 2) {
+                radio.playing = false;
+              } else if (event.data === 3 && radio.wanted) {
+                radioMessage("Connecting to live radio…");
+              } else if (event.data === 0 && radio.wanted) {
+                radio.enabled = false;
+                radio.wanted = false;
+                radio.playing = false;
+
+                radioMessage(
+                  "The stream has ended. Tap Live radio to reconnect.",
+                  true
+                );
+              }
+
+              renderAudio();
+            },
+
+            onAutoplayBlocked() {
+              if (epoch !== radio.epoch) return;
+
+              clearTimeout(radio.watchdog);
+              radio.enabled = false;
+              radio.wanted = false;
+              radio.playing = false;
+
+              radioMessage(
+                "Tap Live radio again to allow playback.",
+                true
+              );
+
+              renderAudio();
+            },
+
+            onError(event) {
+              if (epoch !== radio.epoch) return;
+
+              clearTimeout(timeout);
+
+              const messages = {
+                100: "This stream is unavailable right now.",
+                101: "This stream cannot play in an embedded player.",
+                150: "This stream cannot play in an embedded player.",
+                153: location.protocol === "file:"
+                  ? "Live radio needs this HTML hosted on a website."
+                  : "YouTube could not verify this page. Check its referrer settings."
+              };
+
+              const message = messages[event.data] ||
+                "The stream could not play. Tap Live radio to retry.";
+
+              reject(new Error(message));
+
+              if (radio.ready) failRadio(message);
+            }
+          }
+        });
+      });
+    })().catch(error => {
+      if (epoch === radio.epoch) failRadio(error.message);
+      return null;
+    }).finally(() => {
+      if (epoch === radio.epoch) radio.boot = null;
+    });
+
+    return radio.boot;
+  }
+
+  function playRadioNow() {
+    if (!radio.ready || !radio.wanted) return;
+
+    try {
+      const player = radio.player;
+
+      player.setVolume(prefs.radioVolume);
+      player.unMute();
+
+      if (radio.playing) return;
+
+      // Rejoin the live edge after a pause.
+      const end = player.getDuration();
+
+      if (Number.isFinite(end) && end > 5) {
+        player.seekTo(end - 2, true);
+      }
+
+      player.playVideo();
+      clearTimeout(radio.watchdog);
+
+      radio.watchdog = setTimeout(() => {
+        if (radio.wanted && !radio.playing) {
+          radioMessage(
+            "Still connecting. Pause and retry, or open the stream.",
+            true
+          );
+        }
+      }, 15000);
+    } catch {
+      failRadio("The stream could not start. Tap Live radio to retry.");
+    }
+  }
+
+  function startRadio() {
+    if (!radio.wanted) return;
+
+    if (radio.ready) {
+      playRadioNow();
+      return;
+    }
+
+    radioMessage("Connecting to live radio…");
+
+    ensureRadio().then(player => {
+      if (player && radio.wanted) playRadioNow();
+    });
+  }
+
+  function pauseRadio() {
+    clearTimeout(radio.watchdog);
+    radio.playing = false;
+
+    try {
+      if (radio.ready) radio.player.pauseVideo();
+    } catch {}
+
+    radioMessage();
+  }
+
+  function syncAudio(gesture = false) {
+    const active = !prefs.followAudio || (isInterval()
+      ? iv.mode === "running" && iv.phase === "work" && ivLeft() > 0
+      : state.mode === "work" && running() && left() > 0);
+
+    radio.wanted = radio.enabled && active;
+    noise.wanted = noise.enabled && active;
+
+    if (radio.wanted) startRadio();
+    else pauseRadio();
+
+    if (noise.wanted) startNoise(gesture);
+    else stopNoise();
+
+    renderAudio();
+  }
+
+  /* Controls */
+
+  $("toggle").addEventListener("click", toggleTimer);
+
+  function resetTimer() {
+    if (isInterval()) {
+      ivReset();
+      return;
+    }
+
+    settle();
+    state.remaining = duration();
+    state.deadline = null;
+
+    commit();
+    cue("reset", true);
+    announce("Timer reset.");
+  }
+
+  $("reset").addEventListener("click", resetTimer);
+
+  $("skip").addEventListener("click", () => {
+    if (isInterval()) {
+      ivSkip();
+      return;
+    }
+
+    if (settle()) return;
+
+    enter(state.mode === "work" ? "short" : "work");
+
+    commit();
+    cue("skip", true);
+    announce("Session skipped.");
   });
 
-  el.reset.addEventListener("click", function () {
-    reset();
-    el.reset.blur();
+  for (const button of modes) {
+    button.addEventListener("click", () => {
+      settle();
+
+      if (button.dataset.mode === state.mode) return;
+
+      enter(button.dataset.mode);
+      commit();
+      cue("reset", true);
+    });
+  }
+
+  for (const button of kinds) {
+    button.addEventListener("click", () => setKind(button.dataset.kind));
+  }
+
+  for (const button of presets) {
+    button.addEventListener("click", () => {
+      prefs.ivWork = Number(button.dataset.sec);
+
+      if (iv.mode === "done") {
+        iv.mode = "idle";
+        iv.phase = "work";
+        iv.round = 1;
+        iv.total = 0;
+      }
+
+      commit(false);
+    });
+  }
+
+  $("radio-toggle").addEventListener("click", () => {
+    radio.enabled = !radio.enabled;
+    radio.wanted = radio.enabled;
+
+    if (radio.wanted) startRadio();
+    else pauseRadio();
+
+    renderAudio();
   });
 
-  document.addEventListener("keydown", function (e) {
-    var typing = e.target && (e.target.tagName === "INPUT");
-    if (e.code === "Space" && !typing) {
-      e.preventDefault();
-      if (state.mode === "running") pause(); else start();
-    } else if ((e.key === "r" || e.key === "R") && !typing) {
-      e.preventDefault();
-      reset();
+  $("noise-toggle").addEventListener("click", () => {
+    noise.enabled = !noise.enabled;
+    noise.wanted = noise.enabled;
+
+    if (noise.wanted) startNoise(true);
+    else stopNoise();
+
+    renderAudio();
+  });
+
+  $("radio-volume").addEventListener("input", event => {
+    prefs.radioVolume = Number(event.target.value);
+
+    event.target.setAttribute(
+      "aria-valuetext",
+      prefs.radioVolume + " percent"
+    );
+
+    try {
+      if (radio.ready) radio.player.setVolume(prefs.radioVolume);
+    } catch {}
+
+    save();
+  });
+
+  $("noise-volume").addEventListener("input", event => {
+    prefs.noiseVolume = Number(event.target.value);
+
+    event.target.setAttribute(
+      "aria-valuetext",
+      prefs.noiseVolume + " percent"
+    );
+
+    if (noise.gain && context) {
+      noise.gain.gain.setTargetAtTime(
+        noiseLevel(),
+        context.currentTime,
+        .025
+      );
+    }
+
+    save();
+  });
+
+  $("theme").addEventListener("click", () => {
+    prefs.theme = prefs.theme === "dark" ? "light" : "dark";
+    save();
+    render();
+  });
+
+  $("settings-open").addEventListener("click", () => {
+    for (const key of ["work", "short", "long", "rounds", "volume"]) {
+      form.elements.namedItem(key).value = prefs[key];
+    }
+
+    for (const key of ["autoBreaks", "autoFocus", "followAudio", "sound"]) {
+      form.elements.namedItem(key).checked = prefs[key];
+    }
+
+    const field = name => form.elements.namedItem(name);
+
+    field("ivWorkMin").value = Math.floor(prefs.ivWork / 60);
+    field("ivWorkSec").value = prefs.ivWork % 60;
+    field("ivBreakMin").value = Math.floor(prefs.ivBreak / 60);
+    field("ivBreakSec").value = prefs.ivBreak % 60;
+    field("ivRounds").value = prefs.ivRounds;
+    field("ivFlash").checked = prefs.ivFlash;
+    field("ivWake").checked = prefs.ivWake;
+
+    $("settings-pomodoro").hidden = isInterval();
+    $("settings-interval").hidden = !isInterval();
+
+    $("settings").showModal();
+  });
+
+  $("settings-close").addEventListener("click", () => {
+    $("settings").close();
+  });
+
+  $("settings-cancel").addEventListener("click", () => {
+    $("settings").close();
+  });
+
+  $("test-sound").addEventListener("click", () => {
+    cue("finish", true, Number(form.elements.namedItem("volume").value));
+  });
+
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+
+    if (!form.reportValidity()) return;
+
+    settle();
+    ivSettle();
+
+    const oldDuration = duration();
+    const oldFollow = prefs.followAudio;
+
+    for (const key of ["work", "short", "long", "rounds", "volume"]) {
+      prefs[key] = Number(form.elements.namedItem(key).value);
+    }
+
+    for (const key of ["autoBreaks", "autoFocus", "followAudio", "sound"]) {
+      prefs[key] = form.elements.namedItem(key).checked;
+    }
+
+    if (isInterval()) {
+      const num = name => Number(form.elements.namedItem(name).value);
+
+      prefs.ivWork = Math.max(1, num("ivWorkMin") * 60 + num("ivWorkSec"));
+      prefs.ivBreak = num("ivBreakMin") * 60 + num("ivBreakSec");
+      prefs.ivRounds = num("ivRounds");
+      prefs.ivFlash = form.elements.namedItem("ivFlash").checked;
+      prefs.ivWake = form.elements.namedItem("ivWake").checked;
+
+      if (!prefs.ivWake) releaseWake();
+      else if (iv.mode === "running") requestWake();
+    }
+
+    state.cycle = Math.min(state.cycle, prefs.rounds);
+
+    if (state.mode === "work" && state.cycle >= prefs.rounds) {
+      state.cycle = 0;
+    }
+
+    const reset = oldDuration !== duration();
+
+    if (reset) {
+      state.remaining = duration();
+      state.deadline = null;
+    }
+
+    if (!prefs.sound || !prefs.volume) silenceCues();
+
+    $("settings").close();
+
+    commit(reset || oldFollow !== prefs.followAudio, true);
+    announce(reset ? "Settings saved. Timer reset." : "Settings saved.");
+  });
+
+  document.addEventListener("keydown", event => {
+    if (
+      (event.code !== "Space" && event.code !== "KeyR") ||
+      event.repeat ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      $("settings").open
+    ) return;
+
+    if (
+      event.target instanceof Element &&
+      event.target.closest(
+        "button,input,select,textarea,a,summary," +
+        "[contenteditable]:not([contenteditable='false'])"
+      )
+    ) return;
+
+    event.preventDefault();
+
+    if (event.code === "KeyR") resetTimer();
+    else toggleTimer();
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      save();
+    } else {
+      tick();
+      render();
+
+      // Screen wake locks are dropped while the page is hidden.
+      if (isInterval() && iv.mode === "running") requestWake();
     }
   });
 
-  // ---------- settings wiring ----------
-  function wireChips(group, customPanel, key) {
-    var chips = group.querySelectorAll(".chip");
+  window.addEventListener("pagehide", () => {
+    save();
+    radio.wanted = false;
+    noise.wanted = false;
+    pauseRadio();
+    stopNoise();
+  });
 
-    function select(chip) {
-      for (var i = 0; i < chips.length; i++) {
-        chips[i].setAttribute("aria-pressed", chips[i] === chip ? "true" : "false");
-      }
-      var isCustom = chip.hasAttribute("data-custom");
-      customPanel.hidden = !isCustom;
-
-      if (isCustom) {
-        settings[key] = null;
-      } else if (key === "roundPreset") {
-        settings[key] = parseInt(chip.getAttribute("data-rounds"), 10);
-      } else {
-        settings[key] = parseInt(chip.getAttribute("data-sec"), 10);
-      }
-      if (state.mode === "idle") render();
-      else render(state.endAt - Date.now());
+  window.addEventListener("pageshow", event => {
+    if (event.persisted) {
+      tick();
+      render();
+      syncAudio();
     }
-
-    group.addEventListener("click", function (e) {
-      var chip = e.target.closest(".chip");
-      if (chip) { select(chip); chip.blur(); }
-    });
-
-    return select;
-  }
-
-  var selectWork = wireChips(el.workChips, el.workCustom, "workPreset");
-  var selectBreak = wireChips(el.breakChips, el.breakCustom, "breakPreset");
-  var selectRounds = wireChips(el.roundChips, el.roundCustom, "roundPreset");
-
-  selectWork(el.workChips.querySelector('[data-sec="30"]'));
-  selectBreak(el.breakChips.querySelector('[data-sec="0"]'));
-  selectRounds(el.roundChips.querySelector('[data-rounds="0"]'));
-
-  [el.workMin, el.workSec, el.breakMin, el.breakSec, el.roundCount].forEach(function (input) {
-    input.addEventListener("input", function () {
-      if (state.mode === "idle") render();
-      else render(state.endAt - Date.now());
-    });
-    input.addEventListener("blur", function () {
-      var lo = parseInt(input.min, 10), hi = parseInt(input.max, 10);
-      input.value = clampInt(input.value, lo, hi, lo);
-    });
   });
 
-  function wireToggle(button, key, onEnable) {
-    button.addEventListener("click", function () {
-      settings[key] = !settings[key];
-      button.setAttribute("aria-pressed", settings[key] ? "true" : "false");
-      if (settings[key] && onEnable) onEnable();
-      if (!settings[key] && key === "wake") releaseWake();
-      button.blur();
-    });
-  }
-
-  wireToggle(el.sound, "sound", initAudio);
-  wireToggle(el.flashOpt, "flash");
-  wireToggle(el.wake, "wake", function () { if (state.mode === "running") requestWake(); });
-
-  // Re-acquire the wake lock after the tab comes back into view.
-  document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "visible" && state.mode === "running") requestWake();
-  });
-
-  // ---------- go ----------
+  restore();
+  $("radio-volume").value = prefs.radioVolume;
+  $("noise-volume").value = prefs.noiseVolume;
   render();
-  requestAnimationFrame(frame);
+  tick();
+
+  if (isInterval() && iv.mode === "running") requestWake();
 })();
 </script>
 </body>
